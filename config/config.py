@@ -42,6 +42,7 @@ RF_PARAMS = {
     'reg_lambda': 1.0,
     'min_child_weight': 1e-3,
     'random_state': RANDOM_STATE,
+    'verbose': -1  
 }
 
 # Mailing strategy parameters

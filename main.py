@@ -222,9 +222,12 @@ def main() -> None:
             logging.info(f"{metric}: {value:.4f}")
         
         # Regression Model (for donors only)
+        logging.info("Preparing data for regression model...")
+        # Get the indices where y_train is 1 (donors)
         donors_mask = y_train == 1
-        X_donors = X_train[donors_mask]
-        y_donors = train_df[donors_mask]["TARGET_D"]
+        # Use loc to avoid index alignment issues
+        X_donors = X_train.loc[donors_mask.index[donors_mask]]
+        y_donors = train_df.loc[donors_mask.index[donors_mask], "TARGET_D"]
         
         reg, reg_metrics = train_regression_model(X_donors, y_donors)
         logging.info("Regression Metrics:")

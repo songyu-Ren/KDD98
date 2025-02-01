@@ -73,10 +73,10 @@ def train_classification_model(X_train: pd.DataFrame,
         
         # Train model with evaluation
         clf.fit(
-            X_train, y_train,
+            X_train, 
+            y_train,
             eval_set=[(X_val, y_val)],
-            eval_metric=['auc', 'binary_logloss'],
-            verbose=100  # Print evaluation every 100 iterations
+            eval_metric=['auc', 'binary_logloss']
         )
         logging.info("Classifier training completed")
         
@@ -106,7 +106,7 @@ def train_classification_model(X_train: pd.DataFrame,
     except Exception as e:
         logging.error(f"Error in classification model training: {str(e)}")
         raise
-
+    
 def train_regression_model(X_donors: pd.DataFrame,
                          y_donors: pd.Series) -> Tuple[RandomForestRegressor, Dict]:
     """
