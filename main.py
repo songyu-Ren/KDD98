@@ -34,6 +34,7 @@ from src.feature_engineering import (
     create_promotion_features,
     encode_categorical_features
 )
+from src.feature_selection import perform_feature_selection
 from src.model_training import (
     prepare_training_data,
     train_classification_model,
@@ -211,7 +212,10 @@ def main() -> None:
         train_df, val_df = encode_categorical_features(train_df, val_df)
         log_memory_usage()
         
-        # 3. Model Training
+        # 3. Feature Selection
+        train_df, val_df = perform_feature_selection(train_df, val_df)
+
+        # 4. Model Training
         logging.info("Training models...")
         X_train, X_val, y_train, y_val = prepare_training_data(train_df)
         
@@ -234,11 +238,11 @@ def main() -> None:
         for metric, value in reg_metrics.items():
             logging.info(f"{metric}: {value:.4f}")
         
-        # 4. Save Models
+        # 5. Save Models
         save_models(clf, reg)
         log_memory_usage()
         
-        # 5. Make Predictions and Optimize Strategy
+        # 6. Make Predictions and Optimize Strategy
         logging.info("Optimizing mailing strategy...")
         val_predictions = pd.DataFrame()
         val_predictions["P_donation"] = clf.predict_proba(val_df)[:, 1]
@@ -247,12 +251,12 @@ def main() -> None:
             val_predictions["P_donation"] * val_predictions["predicted_donation"]
         )
         
-        # 6. Optimize and summarize strategy
+        # 7. Optimize and summarize strategy
         val_predictions, total_revenue = optimize_mailing_strategy(val_predictions)
         print_strategy_summary(val_predictions)
         logging.info(f"Total Expected Net Revenue: ${total_revenue:.2f}")
         
-        # 7. Save Results
+        # 8. Save Results
         save_results(val_predictions, total_revenue, clf_metrics, reg_metrics)
         
         # Print execution time and final memory usage
