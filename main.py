@@ -241,8 +241,8 @@ def main() -> None:
         # 5. Make Predictions and Optimize Strategy
         logging.info("Optimizing mailing strategy...")
         val_predictions = pd.DataFrame()
-        val_predictions["P_donation"] = clf.predict_proba(X_val)[:, 1]
-        val_predictions["predicted_donation"] = reg.predict(X_val)
+        val_predictions["P_donation"] = clf.predict_proba(val_df)[:, 1]
+        val_predictions["predicted_donation"] = reg.predict(val_df)
         val_predictions["expected_donation"] = (
             val_predictions["P_donation"] * val_predictions["predicted_donation"]
         )
