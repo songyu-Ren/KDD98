@@ -10,6 +10,7 @@ import psutil
 import pandas as pd
 from datetime import datetime
 from typing import Dict
+import joblib
 
 # Import custom modules
 from config.config import (
@@ -19,6 +20,7 @@ from config.config import (
     TRAIN_FILE,
     VAL_FILE
 )
+
 from src.data_preprocessing import (
     load_data,
     handle_missing_values,
@@ -136,7 +138,16 @@ def main() -> None:
         log_memory_usage()
         
         # 3. Feature Selection
-        train_df, val_df = perform_feature_selection(train_df, val_df)
+        logging.info("Performing feature selection...")
+        train_df, val_df, selected_features = perform_feature_selection(train_df, val_df)
+        
+        # Save selected features
+        feature_dict = {
+            'selected_features': selected_features
+        }
+        feature_path = os.path.join(MODELS_DIR, 'selected_features.pkl')
+        joblib.dump(feature_dict, feature_path)
+        logging.info(f"Selected features saved to: {feature_path}")
 
         # 4. Model Training
         logging.info("Training models...")
@@ -167,8 +178,15 @@ def main() -> None:
         # 6. Make Predictions and Optimize Strategy using DonationPredictor
         logging.info("Making predictions and optimizing mailing strategy...")
         predictor = DonationPredictor()
+        predictor.set_selected_features(selected_features)  # Set selected features
         predictions, metrics = predictor.make_predictions(val_df)
         
+        # Log feature selection info
+        logging.info(f"Number of selected features: {len(selected_features)}")
+        logging.info("Selected features:")
+        for feature in selected_features:
+            logging.info(f"- {feature}")
+
         # 7. Generate and save report
         report = format_strategy_report(metrics)
         save_prediction_results(predictions, report, metrics)

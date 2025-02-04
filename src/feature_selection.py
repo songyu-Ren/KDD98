@@ -131,7 +131,12 @@ def perform_feature_selection(train_df: pd.DataFrame,
         logging.info(f"Training set: {len(train_selected.columns)}")
         logging.info(f"Validation set: {len(val_selected.columns)}")
 
-        return train_selected, val_selected
+        # Log selected features
+        logging.info("Selected features:")
+        for feature in rfecv_selected_features:
+            logging.info(f"- {feature}")
+
+        return train_selected, val_selected, rfecv_selected_features
 
     except Exception as e:
         logging.error(f"Error in feature selection: {str(e)}")
