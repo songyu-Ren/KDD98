@@ -8,10 +8,8 @@ import time
 import logging
 import psutil
 import pandas as pd
-import numpy as np
 from datetime import datetime
-from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict
 
 # Import custom modules
 from config.config import (
@@ -19,9 +17,7 @@ from config.config import (
     PROCESSED_DATA_DIR,
     MODELS_DIR,
     TRAIN_FILE,
-    VAL_FILE,
-    MAILING_COST_EXPENSIVE,
-    MAILING_COST_CHEAP
+    VAL_FILE
 )
 from src.data_preprocessing import (
     load_data,
@@ -41,7 +37,11 @@ from src.model_training import (
     train_regression_model,
     save_models
 )
-from src.prediction import predict_for_new_data
+from src.prediction import (
+    DonationPredictor,
+    format_strategy_report,
+    save_prediction_results
+)
 from src.utils import print_step_time
 
 def setup_logging() -> None:
@@ -94,96 +94,19 @@ def log_memory_usage() -> None:
     mem_usage = process.memory_info().rss / 1024 / 1024  # in MB
     logging.info(f"Current memory usage: {mem_usage:.2f} MB")
 
-def optimize_mailing_strategy(val_predictions: pd.DataFrame) -> Tuple[pd.DataFrame, float]:
-    """
-    Optimize mailing strategy based on expected donations and costs.
-    
-    Args:
-        val_predictions: DataFrame containing prediction probabilities and amounts
-    
-    Returns:
-        Tuple of (predictions_with_strategy, total_revenue)
-    """
-    # Compute net gains
-    val_predictions["net_gain_expensive"] = (
-        val_predictions["expected_donation"] - MAILING_COST_EXPENSIVE
-    )
-    val_predictions["net_gain_cheap"] = (
-        val_predictions["expected_donation"] - MAILING_COST_CHEAP
-    )
-    
-    # Determine optimal strategy
-    val_predictions["mailing_strategy"] = "No Mail"
-    val_predictions.loc[
-        val_predictions["net_gain_expensive"] > 0, "mailing_strategy"
-    ] = "Expensive Mail"
-    val_predictions.loc[
-        (val_predictions["net_gain_cheap"] > 0) & 
-        (val_predictions["net_gain_expensive"] <= 0),
-        "mailing_strategy"
-    ] = "Cheap Mail"
-    
-    # Calculate total revenue
-    total_revenue = (
-        val_predictions.loc[
-            val_predictions["mailing_strategy"] == "Expensive Mail",
-            "net_gain_expensive"
-        ].sum() +
-        val_predictions.loc[
-            val_predictions["mailing_strategy"] == "Cheap Mail",
-            "net_gain_cheap"
-        ].sum()
-    )
-    
-    return val_predictions, total_revenue
-
-def print_strategy_summary(predictions: pd.DataFrame) -> None:
-    """Print summary statistics for each mailing strategy."""
-    print("\nStrategy Summary:")
-    print("=" * 50)
-    
-    for strategy in ["Expensive Mail", "Cheap Mail", "No Mail"]:
-        strategy_data = predictions[predictions["mailing_strategy"] == strategy]
-        print(f"\n{strategy}:")
-        print(f"Count: {len(strategy_data)}")
-        print(f"Average Expected Donation: ${strategy_data['expected_donation'].mean():.2f}")
-        
-        if strategy != "No Mail":
-            net_gain_col = "net_gain_expensive" if strategy == "Expensive Mail" else "net_gain_cheap"
-            print(f"Average Net Gain: ${strategy_data[net_gain_col].mean():.2f}")
-            print(f"Total Net Gain: ${strategy_data[net_gain_col].sum():.2f}")
-
-def save_results(val_predictions: pd.DataFrame, 
-                total_revenue: float, 
-                clf_metrics: Dict, 
-                reg_metrics: Dict) -> None:
-    """
-    Save analysis results and metrics.
-    
-    Args:
-        val_predictions: DataFrame with predictions and strategies
-        total_revenue: Total expected revenue
-        clf_metrics: Classification model metrics
-        reg_metrics: Regression model metrics
-    """
+def save_model_metrics(clf_metrics: Dict, reg_metrics: Dict) -> None:
+    """Save model training metrics."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    results_dir = "results"
-    os.makedirs(results_dir, exist_ok=True)
-    
-    # Save predictions
-    predictions_path = os.path.join(results_dir, f'predictions_{timestamp}.csv')
-    val_predictions.to_csv(predictions_path, index=False)
-    
-    # Save metrics
     metrics = {
         'classification': clf_metrics,
-        'regression': reg_metrics,
-        'total_revenue': total_revenue
+        'regression': reg_metrics
     }
-    metrics_path = os.path.join(results_dir, f'metrics_{timestamp}.json')
-    pd.DataFrame(metrics).to_json(metrics_path)
     
-    logging.info(f"Results saved:\n- Predictions: {predictions_path}\n- Metrics: {metrics_path}")
+    results_dir = "results"
+    os.makedirs(results_dir, exist_ok=True)
+    metrics_path = os.path.join(results_dir, f'training_metrics_{timestamp}.json')
+    pd.DataFrame(metrics).to_json(metrics_path)
+    logging.info(f"Training metrics saved to: {metrics_path}")
 
 def main() -> None:
     """Main execution function."""
@@ -227,9 +150,7 @@ def main() -> None:
         
         # Regression Model (for donors only)
         logging.info("Preparing data for regression model...")
-        # Get the indices where y_train is 1 (donors)
         donors_mask = y_train == 1
-        # Use loc to avoid index alignment issues
         X_donors = X_train.loc[donors_mask.index[donors_mask]]
         y_donors = train_df.loc[donors_mask.index[donors_mask], "TARGET_D"]
         
@@ -240,24 +161,21 @@ def main() -> None:
         
         # 5. Save Models
         save_models(clf, reg)
+        save_model_metrics(clf_metrics, reg_metrics)
         log_memory_usage()
         
-        # 6. Make Predictions and Optimize Strategy
-        logging.info("Optimizing mailing strategy...")
-        val_predictions = pd.DataFrame()
-        val_predictions["P_donation"] = clf.predict_proba(val_df)[:, 1]
-        val_predictions["predicted_donation"] = reg.predict(val_df)
-        val_predictions["expected_donation"] = (
-            val_predictions["P_donation"] * val_predictions["predicted_donation"]
-        )
+        # 6. Make Predictions and Optimize Strategy using DonationPredictor
+        logging.info("Making predictions and optimizing mailing strategy...")
+        predictor = DonationPredictor()
+        predictions, metrics = predictor.make_predictions(val_df)
         
-        # 7. Optimize and summarize strategy
-        val_predictions, total_revenue = optimize_mailing_strategy(val_predictions)
-        print_strategy_summary(val_predictions)
-        logging.info(f"Total Expected Net Revenue: ${total_revenue:.2f}")
+        # 7. Generate and save report
+        report = format_strategy_report(metrics)
+        save_prediction_results(predictions, report, metrics)
         
-        # 8. Save Results
-        save_results(val_predictions, total_revenue, clf_metrics, reg_metrics)
+        # Print summary
+        logging.info(f"Total Expected Net Revenue: ${metrics['overall']['total_net_revenue']:.2f}")
+        logging.info(f"Total Mailings: {metrics['overall']['total_mailings']}")
         
         # Print execution time and final memory usage
         execution_time = time.time() - total_start

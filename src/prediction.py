@@ -28,10 +28,26 @@ class DonationPredictor:
         try:
             self.classifier = joblib.load(CLASSIFIER_MODEL_PATH)
             self.regressor = joblib.load(REGRESSOR_MODEL_PATH)
+            self.selected_features = None  # Initialize selected_features as None
             logging.info("Models loaded successfully")
         except FileNotFoundError as e:
             logging.error(f"Error loading models: {e}")
             raise
+
+    def set_selected_features(self, features: list) -> None:
+        """Set the selected features for prediction."""
+        self.selected_features = features
+        logging.info(f"Set {len(features)} selected features for prediction")
+
+    def _prepare_features(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Prepare features for prediction."""
+        if self.selected_features is not None:
+            missing_features = set(self.selected_features) - set(X.columns)
+            if missing_features:
+                raise ValueError(f"Missing required features: {missing_features}")
+            return X[self.selected_features]
+        return X
+    
     
     def predict_donation_probability(self, X: pd.DataFrame) -> np.ndarray:
         """Predict probability of donation."""
