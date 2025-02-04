@@ -38,8 +38,11 @@ class DonationPredictor:
         return self.classifier.predict_proba(X)[:, 1]
     
     def predict_donation_amount(self, X: pd.DataFrame) -> np.ndarray:
-        """Predict donation amount."""
-        return self.regressor.predict(X)
+        """Predict donation amount with log transformation."""
+        # Predict log-transformed values
+        predicted_amounts_log = self.regressor.predict(X)
+        # Convert back to original scale
+        return np.expm1(predicted_amounts_log)
     
     def calculate_expected_donation(self, X: pd.DataFrame) -> pd.DataFrame:
         """Calculate expected donation by combining probability and amount predictions."""
