@@ -51,12 +51,14 @@ class DonationPredictor:
     
     def predict_donation_probability(self, X: pd.DataFrame) -> np.ndarray:
         """Predict probability of donation."""
-        return self.classifier.predict_proba(X)[:, 1]
+        X_prepared = self._prepare_features(X)
+        return self.classifier.predict_proba(X_prepared)[:, 1]
     
     def predict_donation_amount(self, X: pd.DataFrame) -> np.ndarray:
         """Predict donation amount with log transformation."""
         # Predict log-transformed values
-        predicted_amounts_log = self.regressor.predict(X)
+        X_prepared = self._prepare_features(X)
+        predicted_amounts_log = self.regressor.predict(X_prepared)
         # Convert back to original scale
         return np.expm1(predicted_amounts_log)
     
@@ -70,7 +72,7 @@ class DonationPredictor:
         )
         return predictions
     
-    def determine_mailing_strategy_improved(self, predictions: pd.DataFrame, budget: float = None) -> pd.DataFrame:
+    def determine_mailing_strategy(self, predictions: pd.DataFrame, budget: float = None) -> pd.DataFrame:
         """
         Determine an improved mailing strategy by:
         - Using a margin threshold to decide when expensive mail is justified.
