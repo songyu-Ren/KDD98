@@ -70,26 +70,73 @@ class DonationPredictor:
         )
         return predictions
     
-    def determine_mailing_strategy(self, predictions: pd.DataFrame) -> pd.DataFrame:
-        """Determine optimal mailing strategy based on expected donations and costs."""
-        predictions['net_gain_expensive'] = (
-            predictions['expected_donation'] - MAILING_COST_EXPENSIVE
-        )
-        predictions['net_gain_cheap'] = (
-            predictions['expected_donation'] - MAILING_COST_CHEAP
+    def determine_mailing_strategy_improved(self, predictions: pd.DataFrame, budget: float = None) -> pd.DataFrame:
+        """
+        Determine an improved mailing strategy by:
+        - Using a margin threshold to decide when expensive mail is justified.
+        - Optionally enforcing a mailing budget by ranking customers.
+        
+        Parameters:
+        predictions: DataFrame with expected_donation predictions.
+        budget: Optional total dollar amount available for mailing.
+        
+        Returns:
+        DataFrame with a new column 'mailing_strategy' set to:
+            'Expensive Mail', 'Cheap Mail', or 'No Mail'.
+        """
+        # Calculate net gains for both mailing types
+        predictions['net_gain_expensive'] = predictions['expected_donation'] - MAILING_COST_EXPENSIVE
+        predictions['net_gain_cheap'] = predictions['expected_donation'] - MAILING_COST_CHEAP
+
+        # Use a margin threshold to avoid marginal cases.
+        margin_threshold = 5  # You can tune this threshold based on historical data
+        
+        # Choose preferred mailing method by comparing net gains.
+        # If expensive mail provides a sufficiently higher net gain, choose it.
+        predictions['preferred_strategy'] = np.where(
+            predictions['net_gain_expensive'] > predictions['net_gain_cheap'] + margin_threshold,
+            'Expensive Mail', 'Cheap Mail'
         )
         
-        predictions['mailing_strategy'] = 'No Mail'
-        predictions.loc[
-            predictions['net_gain_expensive'] > 0, 'mailing_strategy'
-        ] = 'Expensive Mail'
-        predictions.loc[
-            (predictions['net_gain_cheap'] > 0) & 
-            (predictions['net_gain_expensive'] <= 0),
-            'mailing_strategy'
-        ] = 'Cheap Mail'
+        # If both mailing options have negative net gains, choose not to mail.
+        max_net_gain = predictions[['net_gain_expensive', 'net_gain_cheap']].max(axis=1)
+        predictions.loc[max_net_gain < margin_threshold, 'preferred_strategy'] = 'No Mail'
+        
+        # If a budget constraint is provided, select the best candidates until the budget is exhausted.
+        if budget is not None:
+            # Map mailing strategy to mailing cost
+            cost_mapping = {
+                'Expensive Mail': MAILING_COST_EXPENSIVE,
+                'Cheap Mail': MAILING_COST_CHEAP,
+                'No Mail': 0
+            }
+            predictions['mailing_cost'] = predictions['preferred_strategy'].map(cost_mapping)
+            # Rank customers by the best net gain (you can use max(net_gain) as a proxy)
+            predictions['max_net_gain'] = max_net_gain
+            predictions.sort_values('max_net_gain', ascending=False, inplace=True)
+
+            selected_indices = []
+            remaining_budget = budget
+            for idx, row in predictions.iterrows():
+                cost = row['mailing_cost']
+                # Only select if mailing incurs a cost and the budget allows it.
+                if cost > 0 and remaining_budget >= cost:
+                    selected_indices.append(idx)
+                    remaining_budget -= cost
+                else:
+                    predictions.at[idx, 'preferred_strategy'] = 'No Mail'
+                    predictions.at[idx, 'mailing_cost'] = 0
+
+            # Reassign the mailing strategy based on budget-constrained selection.
+            predictions['mailing_strategy'] = predictions['preferred_strategy']
+        else:
+            predictions['mailing_strategy'] = predictions['preferred_strategy']
+        
+        # Optionally, drop helper columns before returning.
+        predictions.drop(columns=['preferred_strategy', 'mailing_cost', 'max_net_gain'], inplace=True, errors='ignore')
         
         return predictions
+
     
     def calculate_strategy_metrics(self, predictions: pd.DataFrame) -> Dict:
         """Calculate metrics for each mailing strategy."""
