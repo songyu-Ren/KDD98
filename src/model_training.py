@@ -128,6 +128,10 @@ def train_regression_model(X_donors: pd.DataFrame,
         )
         logging.info("Donor data split for regression model")
         
+        # Apply log transformation to the donation amounts.
+        # This converts the target using np.log1p (i.e., log(1 + value))
+        y_train_donors_log = np.log1p(y_train_donors)
+
         # Initialize and train regressor
         reg = RandomForestRegressor(
             n_estimators=200,
@@ -140,7 +144,7 @@ def train_regression_model(X_donors: pd.DataFrame,
             verbose=1
         )
         
-        reg.fit(X_train_donors, y_train_donors)
+        reg.fit(X_train_donors, y_train_donors_log)
         logging.info("Regression model training completed")
         
         # Make predictions

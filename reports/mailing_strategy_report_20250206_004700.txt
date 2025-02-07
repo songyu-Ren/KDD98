@@ -1,0 +1,48 @@
+Mailing Strategy Report
+==================================================
+
+Expensive Mail:
+  Count: 0
+  Average Expected Donation: $nan
+  Average Net Gain: $nan
+  Total Net Gain: $0.00
+
+Cheap Mail:
+  Count: 96367
+  Average Expected Donation: $22754244162032915116457984.00
+  Average Net Gain: $22754244162032915116457984.00
+  Total Net Gain: $2192758247162625973174220619776.00
+
+No Mail:
+  Count: 0
+  Average Expected Donation: $nan
+
+Overall Summary:
+  Total Net Revenue: $2192758247162625973174220619776.00
+  Total Mailings: 96367
+
+Raw Metrics:
+==================================================
+
+Expensive Mail:
+  count: 0
+  avg_expected_donation: nan
+  total_expected_donation: 0.0
+  avg_net_gain: nan
+  total_net_gain: 0.0
+
+Cheap Mail:
+  count: 96367
+  avg_expected_donation: 2.2754244162032915e+25
+  total_expected_donation: 2.192758247162626e+30
+  avg_net_gain: 2.2754244162032915e+25
+  total_net_gain: 2.192758247162626e+30
+
+No Mail:
+  count: 0
+  avg_expected_donation: nan
+  total_expected_donation: 0.0
+
+overall:
+  total_net_revenue: 2.192758247162626e+30
+  total_mailings: 96367
